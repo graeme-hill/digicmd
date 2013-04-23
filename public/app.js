@@ -1,12 +1,54 @@
-// window.App = Ember.Application.create();
+window.App = (function() {
 
-// App.ApplicationController = Ember.Controller.extend({
-// 	firstName: "Graeme",
-// 	lastName: "Hill"
-// });
-
-var app = (function() {
 	return {
+		ViewModels: {},
+
+		bootstrap: function() {
+			var mergedJs = null;
+			var mergedCss = null;
+			var mergedHtml = null;
+
+			function onFileReceived() {
+				if (mergedJs != null && mergedCss != null && mergedHtml != null) {
+					$('head').append(mergedCss);
+					$('head').append(mergedHtml);
+					eval(mergedJs);
+
+					App.masterViewModel = new App.ViewModels.Master();
+					$('body').html($('#view-master').html());
+					ko.applyBindings(App.masterViewModel);
+				}
+			}
+
+			function loadFile(url, done) {
+				$.ajax({
+					url: url,
+					type: 'GET',
+					success: function(response) {
+						done(response);
+						onFileReceived();
+					}
+				});
+			}
+
+			function loadScript(url, done) {
+				$.ajax({
+					url: url,
+					type: 'GET',
+					dataType: 'script',
+					complete: function(response) {
+						done(response.responseText);
+						onFileReceived();
+					}
+				})
+			}
+
+			loadFile('/static/merged.css', function(content) { mergedCss = content; });
+			loadScript('/static/merged.js', function(content) { mergedJs = content; });
+			loadFile('/static/merged.html', function(content) { mergedHtml = content; });
+
+		},
+
 		callApi: function(args) {
 			args.contentType = "application/json";
 			args.accepts = "application/json";
@@ -35,25 +77,34 @@ var app = (function() {
 		delete: function(args) {
 			args.type = "DELETE";
 			app.callApi(args);
+		},
+
+		defineVM: function(name, viewModel) {
+			App.ViewModels[name] = viewModel;
+			viewModel.prototype.getViewId = function() {
+				return 'view-' + name.toLowerCase();
+			};
 		}
 	};
+
 })();
 
-function IssuesCtrl($scope) {
-	
-	var reload = function() {
-		app.get({
-			url: '/api/v1/issues',
-			success: function(response) { $scope.issues = response; }
-		});
-	}
-	reload();
+ko.bindingHandlers.viewModel = {
+  update: function(element, valueAccessor, allBindingsAccessor, viewModel, bindingContext) {
+  	$element = $(element);
+  	var newVM = valueAccessor()();
+  	$element.children().each(function() {
+  		ko.cleanNode(this);
+  	});
+  	if (newVM) {
+  		$element.html($('#' + newVM.getViewId()).html());
+			$element.children().each(function() {
+				ko.applyBindings(newVM, this);
+			});
+  	} else {  		
+  		$element.html('');
+  	}
+  }
+};
 
-	$scope.addIssue = function() {
-		app.post({
-			url: "/api/v1/issues", 
-			data: { name: $scope.name },
-			success: function() { reload(); }
-		});
-	};
-}
+App.bootstrap();

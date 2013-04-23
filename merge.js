@@ -7,16 +7,19 @@ function endsWith(str, suffix) {
 	return str.indexOf(suffix, str.length - suffix.length) !== -1;
 }
 
-function watchFolder(baseDirectory, extensions, onChanged) {
+function Watcher(args) {
 	var me = this;
 	var watchedDirectories = [];
 	var version = 0;
 
-	me.baseDirectory = baseDirectory;
+	me.baseDirectory = args.directory;
+	me.extensions = args.extensions;
+	me.onChanged = args.onChanged;
+	me.processContent = args.processContent;
 
 	me.shouldIncludeFile = function(file) {
-		for (var i = 0; i < extensions.length; i++) {
-			if (endsWith(file, extensions[i])) {
+		for (var i = 0; i < me.extensions.length; i++) {
+			if (endsWith(file, me.extensions[i])) {
 				return true;
 			}
 		}
@@ -34,15 +37,17 @@ function watchFolder(baseDirectory, extensions, onChanged) {
 
 	me.onContentReady = function(content, contentVersion) {
 		if (version == contentVersion) {
-			onChanged(content);
+			me.onChanged(content);
 		}
+	};
+
+	me.start = function() {
+		rebuild();
 	};
 
 	function rebuild() {
 		mergeFolder(me, ++version);
 	}
-
-	rebuild();
 }
 
 function mergeFolder(watcher, version) {
@@ -73,7 +78,10 @@ function mergeFolder(watcher, version) {
 						if (watcher.shouldIncludeFile(filePath)) {
 							push();
 							fs.readFile(filePath, ENCODING, function(err, data) {
-								content += '\n' + data + '\n';
+								var relativePath = filePath.substring(watcher.baseDirectory.length, filePath.length);
+								content += (watcher.processContent 
+									? watcher.processContent(relativePath, data)
+									: data);
 								pop();
 							});
 						}
@@ -90,6 +98,7 @@ function mergeFolder(watcher, version) {
 
 module.exports = {
 	setup: function(args) {
-		watchFolder(args.directory, args.extensions, args.onChanged);
+		var watcher = new Watcher(args);
+		watcher.start();
 	}
 };
