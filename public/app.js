@@ -91,6 +91,7 @@ window.App = (function() {
 
 ko.bindingHandlers.viewModel = {
   update: function(element, valueAccessor, allBindingsAccessor, viewModel, bindingContext) {
+  	debugger;
   	$element = $(element);
   	var newVM = valueAccessor()();
   	$element.children().each(function() {
